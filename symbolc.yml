@@ -1,0 +1,14 @@
+version: 1
+
+source:
+  roots:
+    - .
+
+privateSymbols: true
+
+contracts:
+  include:
+    - internal/**
+  exclude:
+    - "**/*_test.go"
+    - "**/generated/**"
