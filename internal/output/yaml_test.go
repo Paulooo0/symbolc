@@ -3,6 +3,7 @@ package output
 import (
 	"testing"
 
+	"github.com/Paulooo0/symbolc/internal/config"
 	"github.com/Paulooo0/symbolc/internal/graph"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -43,10 +44,10 @@ func TestMarshalYAML(t *testing.T) {
 	g.AddSymbol(packageSymbol)
 	g.AddMethod(receiver.ID, method.ID)
 
-	first, err := MarshalYAML(g)
+	first, err := MarshalYAML(g, config.Config{})
 	require.NoError(t, err)
 
-	second, err := MarshalYAML(g)
+	second, err := MarshalYAML(g, config.Config{})
 	require.NoError(t, err)
 	require.Equal(t, first, second)
 
@@ -69,7 +70,34 @@ func TestMarshalYAMLSkipsMissingMethodSymbols(t *testing.T) {
 	receiver := &graph.Symbol{ID: "User", Methods: []graph.SymbolID{"missing"}}
 	g.AddSymbol(receiver)
 
-	data, err := MarshalYAML(g)
+	data, err := MarshalYAML(g, config.Config{})
 	require.NoError(t, err)
 	require.NotContains(t, string(data), "missing")
+}
+
+func TestMarshalYAMLFiltersBySourcePath(t *testing.T) {
+	g := graph.NewGraph()
+	for _, symbol := range []*graph.Symbol{
+		{ID: "included", Package: graph.Package{ImportPath: "example.com/test"}, Source: graph.Source{File: "/project/internal/service/service.go"}},
+		{ID: "test", Package: graph.Package{ImportPath: "example.com/test"}, Source: graph.Source{File: "/project/internal/service/service_test.go"}},
+		{ID: "generated", Package: graph.Package{ImportPath: "example.com/test"}, Source: graph.Source{File: "/project/internal/generated/code.go"}},
+	} {
+		g.AddSymbol(symbol)
+	}
+
+	cfg := config.Config{
+		Source: config.SourceConfig{Roots: []string{"/project"}},
+		Contracts: config.ContractsConfig{
+			Include: []string{"internal/**"},
+			Exclude: []string{"**/*_test.go", "**/generated/**"},
+		},
+	}
+
+	data, err := MarshalYAML(g, cfg)
+	require.NoError(t, err)
+
+	var got document
+	require.NoError(t, yaml.Unmarshal(data, &got))
+	require.Len(t, got.Symbols, 1)
+	require.Equal(t, graph.SymbolID("included"), got.Symbols[0].ID)
 }
