@@ -11,7 +11,9 @@ type CreateUserInput struct {
 
 type UserService struct{}
 
-func (UserService) CreateUser(input CreateUserInput) (User, error) {
+func (*UserService) CreateUser(input CreateUserInput) (User, error) {
 	user := User{}
 	return user, nil
 }
+
+func Foo()

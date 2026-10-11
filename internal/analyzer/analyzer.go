@@ -75,9 +75,14 @@ func (a *analyzer) loadPackages() (
 }
 
 func (a *analyzer) analyzePackage(g *graph.Graph, pkg *packages.Package) {
-	scope := pkg.Types.Scope()
+	a.analyzePackageScope(g, pkg)
+	a.analyzeDefinitions(g, pkg)
+}
 
+func (a *analyzer) analyzePackageScope(g *graph.Graph, pkg *packages.Package) {
+	scope := pkg.Types.Scope()
 	for _, name := range scope.Names() {
+
 		obj := scope.Lookup(name)
 
 		switch obj := obj.(type) {
@@ -87,8 +92,15 @@ func (a *analyzer) analyzePackage(g *graph.Graph, pkg *packages.Package) {
 			a.analyzeConst(g, pkg, obj)
 		case *types.Var:
 			a.analyzeVar(g, pkg, obj)
+		}
+	}
+}
+
+func (a *analyzer) analyzeDefinitions(g *graph.Graph, pkg *packages.Package) {
+	for _, obj := range pkg.TypesInfo.Defs {
+		switch obj := obj.(type) {
 		case *types.Func:
-			a.analyzeFunc(g, pkg, obj)
+			a.analyzeFuncDefinition(g, pkg, obj)
 		}
 	}
 }
@@ -110,15 +122,42 @@ func (a *analyzer) analyzeVar(g *graph.Graph, pkg *packages.Package, varObj *typ
 	g.AddSymbol(symbolFromObj(pkg, varObj, graph.KindVariable))
 }
 
-func (a *analyzer) analyzeFunc(g *graph.Graph, pkg *packages.Package, funcObj *types.Func) {
-	g.AddSymbol(symbolFromObj(pkg, funcObj, graph.KindFunction))
+func (a *analyzer) analyzeFuncDefinition(g *graph.Graph, pkg *packages.Package, fn *types.Func) {
+	kind := graph.KindFunction
+
+	signature, ok := fn.Type().(*types.Signature)
+	if ok && signature.Recv() != nil {
+		kind = graph.KindMethod
+	}
+
+	symbol := symbolFromObj(pkg, fn, kind)
+	g.AddSymbol(symbol)
+
+	if kind != graph.KindMethod {
+		return
+	}
+
+	receiver := signature.Recv().Type()
+
+	switch ty := receiver.(type) {
+	case *types.Pointer:
+		receiver = ty.Elem()
+	}
+
+	named, ok := receiver.(*types.Named)
+	if !ok {
+		return
+	}
+
+	receiverID := graph.NewSymbolID(named.Obj())
+	g.AddMethod(receiverID, symbol.ID)
 }
 
 func symbolFromNamedType(
 	pkg *packages.Package,
 	typeName *types.TypeName,
 	named *types.Named,
-) graph.Symbol {
+) *graph.Symbol {
 	kind := graph.KindUnknown
 
 	switch named.Underlying().(type) {
@@ -128,8 +167,8 @@ func symbolFromNamedType(
 		kind = graph.KindInterface
 	}
 
-	return graph.Symbol{
-		ID:   graph.SymbolID(fmt.Sprintf("%s.%s", pkg.PkgPath, typeName.Name())),
+	return &graph.Symbol{
+		ID:   graph.NewSymbolID(named.Obj()),
 		Name: typeName.Name(),
 		Package: graph.Package{
 			Name:       pkg.Name,
@@ -144,15 +183,13 @@ func symbolFromObj(
 	pkg *packages.Package,
 	obj types.Object,
 	kind graph.SymbolKind,
-) graph.Symbol {
-	return graph.Symbol{
-		ID: graph.SymbolID(
-			fmt.Sprintf("%s.%s", pkg.PkgPath, obj.Name()),
-		),
+) *graph.Symbol {
+	return &graph.Symbol{
+		ID:   graph.NewSymbolID(obj),
 		Name: obj.Name(),
 		Package: graph.Package{
-			Name:       pkg.Name,
-			ImportPath: pkg.PkgPath,
+			Name:       obj.Pkg().Name(),
+			ImportPath: obj.Pkg().Path(),
 		},
 		Kind:   kind,
 		Source: sourceOf(pkg, obj.Pos()),
