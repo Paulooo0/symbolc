@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Paulooo0/symbolc/pkg/ptr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,7 +14,7 @@ func TestLoad(t *testing.T) {
 	tests := []struct {
 		name        string
 		contents    string
-		wantVersion int
+		wantVersion *int8
 		wantRoot    string
 		wantErr     string
 	}{
@@ -29,7 +30,22 @@ contracts:
   exclude:
     - "**/*_test.go"
 `,
-			wantVersion: 1,
+			wantVersion: ptr.ToPtr(int8(1)),
+			wantRoot:    "./internal",
+		},
+		{
+			name: "fallbacks empty version",
+			contents: `
+source:
+  roots:
+    - ./internal
+contracts:
+  include:
+    - internal/**
+  exclude:
+    - "**/*_test.go"
+`,
+			wantVersion: ptr.ToPtr(int8(1)),
 			wantRoot:    "./internal",
 		},
 		{

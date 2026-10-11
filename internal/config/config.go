@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Paulooo0/symbolc/pkg/ptr"
 	"gopkg.in/yaml.v3"
 )
 
 const DefaultFile = "symbolc.yml"
 
 type Config struct {
-	Version   int             `yaml:"version"`
+	Version   *int8           `yaml:"version"`
 	Source    SourceConfig    `yaml:"source"`
 	Contracts ContractsConfig `yaml:"contracts"`
 }
@@ -44,8 +45,12 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.Version != 1 {
-		return fmt.Errorf("config: unsupported config version: %d", c.Version)
+	if c.Version == nil {
+		c.Version = ptr.ToPtr(int8(1))
+	}
+
+	if *c.Version != 1 {
+		return fmt.Errorf("config: unsupported config version: %d", *c.Version)
 	}
 
 	if len(c.Source.Roots) == 0 {
