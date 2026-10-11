@@ -41,9 +41,9 @@ var syncCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(
-		nil,
+		&configFile,
 		"config",
-		"symbolc.yml",
+		config.DefaultFile,
 		"path to symbolc configuration",
 	)
 

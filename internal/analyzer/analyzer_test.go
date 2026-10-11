@@ -25,15 +25,17 @@ func TestAnalyzer_Analyze(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("discovers_symbols", func(t *testing.T) {
-		require.Len(t, got.Symbols, 9)
+		require.Len(t, got.Symbols, 11)
 
 		expected := map[graph.SymbolID]graph.SymbolKind{
+			"example.com/testproject":                           graph.KindPackage,
 			"example.com/testproject.User":                      graph.KindStruct,
 			"example.com/testproject.CreateUserInput":           graph.KindStruct,
 			"example.com/testproject.UserService":               graph.KindStruct,
 			"example.com/testproject.UserRepository":            graph.KindInterface,
 			"example.com/testproject.ErrUserNotFound":           graph.KindVariable,
 			"example.com/testproject.MaxRetries":                graph.KindConstant,
+			"example.com/testproject.User.String":               graph.KindMethod,
 			"example.com/testproject.UserRepository.CreateUser": graph.KindMethod,
 			"example.com/testproject.UserService.CreateUser":    graph.KindMethod,
 			"example.com/testproject.Foo":                       graph.KindFunction,
@@ -48,6 +50,16 @@ func TestAnalyzer_Analyze(t *testing.T) {
 		}
 	})
 
+	t.Run("records_source_location", func(t *testing.T) {
+		for id, symbol := range got.Symbols {
+			t.Run(string(id), func(t *testing.T) {
+				require.NotEmpty(t, symbol.Source.File)
+				require.Positive(t, symbol.Source.Line)
+				require.Positive(t, symbol.Source.Column)
+			})
+		}
+	})
+
 	t.Run("ignores_local_variables", func(t *testing.T) {
 		require.NotContains(
 			t,
@@ -58,6 +70,9 @@ func TestAnalyzer_Analyze(t *testing.T) {
 
 	t.Run("associates_methods_with_receivers", func(t *testing.T) {
 		expected := map[graph.SymbolID][]graph.SymbolID{
+			"example.com/testproject.User": {
+				"example.com/testproject.User.String",
+			},
 			"example.com/testproject.UserService": {
 				"example.com/testproject.UserService.CreateUser",
 			},

@@ -32,7 +32,7 @@ func Load(path string) (*Config, error) {
 
 	cfg := &Config{}
 
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("config: parse yaml data: %w", err)
 	}
 
@@ -40,7 +40,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: invalid config: %w", err)
 	}
 
-	return nil, nil
+	return cfg, nil
 }
 
 func (c *Config) Validate() error {
@@ -49,7 +49,7 @@ func (c *Config) Validate() error {
 	}
 
 	if len(c.Source.Roots) == 0 {
-		return fmt.Errorf("config: sourte.roots must contain at least one path")
+		return fmt.Errorf("config: source.roots must contain at least one path")
 	}
 	return nil
 }

@@ -75,8 +75,29 @@ func (a *analyzer) loadPackages() (
 }
 
 func (a *analyzer) analyzePackage(g *graph.Graph, pkg *packages.Package) {
+	a.analyzePackageSymbol(g, pkg)
 	a.analyzePackageScope(g, pkg)
 	a.analyzeDefinitions(g, pkg)
+}
+
+func (a *analyzer) analyzePackageSymbol(g *graph.Graph, pkg *packages.Package) {
+	source := graph.Source{}
+	if len(pkg.Syntax) > 0 {
+		source = sourceOf(pkg, pkg.Syntax[0].Name.Pos())
+	}
+
+	symbol := &graph.Symbol{
+		ID:   graph.SymbolID(pkg.Types.Path()),
+		Name: pkg.Types.Name(),
+		Package: graph.Package{
+			Name:       pkg.Types.Name(),
+			ImportPath: pkg.Types.Path(),
+		},
+		Kind:   graph.KindPackage,
+		Source: source,
+	}
+
+	g.AddSymbol(symbol)
 }
 
 func (a *analyzer) analyzePackageScope(g *graph.Graph, pkg *packages.Package) {
