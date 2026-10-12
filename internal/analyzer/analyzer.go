@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"path/filepath"
 
 	"github.com/Paulooo0/symbolc/internal/config"
 	"github.com/Paulooo0/symbolc/internal/graph"
@@ -47,6 +48,9 @@ func (a *analyzer) loadPackages() (
 	var allPkgs []*packages.Package
 
 	for _, root := range a.cfg.Source.Roots {
+		if a.cfg.BaseDir != "" && !filepath.IsAbs(root) {
+			root = filepath.Join(a.cfg.BaseDir, root)
+		}
 		cfg := &packages.Config{
 			Mode: packages.NeedName |
 				packages.NeedCompiledGoFiles |
@@ -59,7 +63,7 @@ func (a *analyzer) loadPackages() (
 		}
 
 		// Load packages from this directory
-		pkgs, err := packages.Load(cfg, ".")
+		pkgs, err := packages.Load(cfg, "./...")
 		if err != nil {
 			return nil, fmt.Errorf("analyzer: failed load packages from %s: %w", root, err)
 		}

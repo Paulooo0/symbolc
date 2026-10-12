@@ -75,6 +75,24 @@ func TestMarshalYAMLSkipsMissingMethodSymbols(t *testing.T) {
 	require.NotContains(t, string(data), "missing")
 }
 
+func TestMarshalYAMLUsesRelativeSourcePaths(t *testing.T) {
+	g := graph.NewGraph()
+	g.AddSymbol(&graph.Symbol{
+		ID:      "example.com/test.User",
+		Name:    "User",
+		Kind:    graph.KindStruct,
+		Source:  graph.Source{File: "/project/internal/user.go", Line: 3, Column: 6},
+		Package: graph.Package{ImportPath: "example.com/test"},
+	})
+
+	data, err := MarshalYAML(g, config.Config{BaseDir: "/project"})
+	require.NoError(t, err)
+
+	var got document
+	require.NoError(t, yaml.Unmarshal(data, &got))
+	require.Equal(t, "internal/user.go", got.Symbols[0].Source.File)
+}
+
 func TestMarshalYAMLFiltersBySourcePath(t *testing.T) {
 	g := graph.NewGraph()
 	for _, symbol := range []*graph.Symbol{

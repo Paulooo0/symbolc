@@ -67,6 +67,17 @@ source:
 			contents: "version: 1\n",
 			wantErr:  "config: invalid config: config: source.roots must contain at least one path",
 		},
+		{
+			name: "rejects unsupported output format",
+			contents: `version: 1
+source:
+  roots:
+    - .
+output:
+  format: json
+`,
+			wantErr: "config: invalid config: config: unsupported output format: json",
+		},
 	}
 
 	for _, tt := range tests {
@@ -85,6 +96,7 @@ source:
 			require.NotNil(t, got)
 			require.Equal(t, tt.wantVersion, got.Version)
 			require.Equal(t, []string{tt.wantRoot}, got.Source.Roots)
+			require.Equal(t, DefaultOutputFormat, got.Output.Format)
 			require.Equal(t, []string{"internal/**"}, got.Contracts.Include)
 			require.Equal(t, []string{"**/*_test.go"}, got.Contracts.Exclude)
 		})

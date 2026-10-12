@@ -61,7 +61,7 @@ func MarshalYAML(g *graph.Graph, cfg config.Config) ([]byte, error) {
 			Name:    symbol.Name,
 			Package: symbol.Package.ImportPath,
 			Kind:    symbol.Kind,
-			Source:  symbol.Source,
+			Source:  relativeSource(symbol.Source, cfg),
 		})
 
 		packages[symbol.Package.ImportPath] = packageEntry{
@@ -105,7 +105,7 @@ func included(symbol *graph.Symbol, cfg config.Config) bool {
 		return true
 	}
 
-	paths := sourcePaths(symbol.Source.File, cfg.Source.Roots)
+	paths := sourcePaths(symbol.Source.File, cfg)
 	if len(cfg.Contracts.Include) > 0 && !matchesAny(paths, cfg.Contracts.Include) {
 		return false
 	}
@@ -113,20 +113,31 @@ func included(symbol *graph.Symbol, cfg config.Config) bool {
 	return !matchesAny(paths, cfg.Contracts.Exclude)
 }
 
-func sourcePaths(file string, roots []string) []string {
+func sourcePaths(file string, cfg config.Config) []string {
 	paths := []string{filepath.ToSlash(filepath.Clean(file))}
 	absFile, err := filepath.Abs(file)
 	if err != nil {
 		return paths
 	}
 
-	if cwd, err := filepath.Abs("."); err == nil {
+	baseDir := cfg.BaseDir
+	if baseDir == "" {
+		baseDir, _ = filepath.Abs(".")
+	}
+	if relative, err := filepath.Rel(baseDir, absFile); err == nil && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		paths = append(paths, filepath.ToSlash(relative))
+	}
+
+	if cwd, err := filepath.Abs("."); err == nil && cwd != baseDir {
 		if relative, err := filepath.Rel(cwd, absFile); err == nil && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 			paths = append(paths, filepath.ToSlash(relative))
 		}
 	}
 
-	for _, root := range roots {
+	for _, root := range cfg.Source.Roots {
+		if baseDir != "" && !filepath.IsAbs(root) {
+			root = filepath.Join(baseDir, root)
+		}
 		absRoot, err := filepath.Abs(root)
 		if err != nil {
 			continue
@@ -138,6 +149,27 @@ func sourcePaths(file string, roots []string) []string {
 	}
 
 	return paths
+}
+
+func relativeSource(source graph.Source, cfg config.Config) graph.Source {
+	if source.File == "" {
+		return source
+	}
+
+	baseDir := cfg.BaseDir
+	if baseDir == "" {
+		baseDir, _ = filepath.Abs(".")
+	}
+	absFile, err := filepath.Abs(source.File)
+	if err != nil {
+		return source
+	}
+	relative, err := filepath.Rel(baseDir, absFile)
+	if err != nil || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return source
+	}
+	source.File = filepath.ToSlash(relative)
+	return source
 }
 
 func matchesAny(paths, patterns []string) bool {
