@@ -83,3 +83,47 @@ func TestMaterializeFiltersContracts(t *testing.T) {
 	require.Contains(t, files, "contracts/app/User.yml")
 	require.NotContains(t, files, "contracts/app/Hidden.yml")
 }
+
+func TestMaterializeSeparatesExecutables(t *testing.T) {
+	g := graph.NewGraph()
+	mainOne := graph.SymbolID("example.com/one/cmd")
+	mainTwo := graph.SymbolID("example.com/two/cmd")
+	sharedOne := graph.SymbolID("example.com/one/shared")
+	sharedTwo := graph.SymbolID("example.com/two/shared")
+
+	g.AddPackage(&graph.PackageInfo{ID: mainOne, Name: "main", Imports: []graph.SymbolID{sharedOne}, Main: true})
+	g.AddPackage(&graph.PackageInfo{ID: mainTwo, Name: "main", Imports: []graph.SymbolID{sharedTwo}, Main: true})
+	g.AddPackage(&graph.PackageInfo{ID: sharedOne, Name: "shared"})
+	g.AddPackage(&graph.PackageInfo{ID: sharedTwo, Name: "shared"})
+	for _, symbol := range []*graph.Symbol{
+		{ID: mainOne, Name: "main", Kind: graph.KindPackage, Package: graph.Package{Name: "main", ImportPath: string(mainOne)}, Source: graph.Source{File: "/project/cmd/one/main.go"}},
+		{ID: mainTwo, Name: "main", Kind: graph.KindPackage, Package: graph.Package{Name: "main", ImportPath: string(mainTwo)}, Source: graph.Source{File: "/project/cmd/two/main.go"}},
+		{ID: sharedOne, Name: "shared", Kind: graph.KindPackage, Package: graph.Package{Name: "shared", ImportPath: string(sharedOne)}, Source: graph.Source{File: "/project/one/shared/shared.go"}},
+		{ID: sharedTwo, Name: "shared", Kind: graph.KindPackage, Package: graph.Package{Name: "shared", ImportPath: string(sharedTwo)}, Source: graph.Source{File: "/project/two/shared/shared.go"}},
+	} {
+		g.AddSymbol(symbol)
+	}
+
+	files, err := Materialize(g, config.Config{BaseDir: "/project"})
+	require.NoError(t, err)
+	require.Contains(t, files, "index.yml")
+	require.Contains(t, files, "cmd/one/index.yml")
+	require.Contains(t, files, "cmd/two/index.yml")
+	require.Contains(t, files, "cmd/one/flux-entrypoints/shared.yml")
+	require.Contains(t, files, "cmd/two/flux-entrypoints/shared.yml")
+	require.Contains(t, files, "cmd/one/contracts/shared/package.yml")
+	require.Contains(t, files, "cmd/two/contracts/shared/package.yml")
+
+	var atlas artifactIndex
+	require.NoError(t, yaml.Unmarshal(files["index.yml"], &atlas))
+	require.Equal(t, []artifactRef{
+		{ID: string(mainOne), Path: "cmd/one/index.yml"},
+		{ID: string(mainTwo), Path: "cmd/two/index.yml"},
+	}, atlas.Executables)
+
+	again, err := Materialize(g, config.Config{BaseDir: "/project"})
+	require.NoError(t, err)
+	for path, data := range files {
+		require.Equal(t, data, again[path], path)
+	}
+}

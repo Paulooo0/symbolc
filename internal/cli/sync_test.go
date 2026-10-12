@@ -59,3 +59,38 @@ output:
 	require.NoError(t, err)
 	require.Contains(t, string(data), "version: 1")
 }
+
+func TestSyncCommandPreservesOutputWhenAnalysisFails(t *testing.T) {
+	directory := t.TempDir()
+	configPath := filepath.Join(directory, "symbolc.yml")
+	outputPath := filepath.Join(directory, "context")
+	root, err := filepath.Abs(filepath.Join("..", "..", "internal", "analyzer", "testdata", "basic"))
+	require.NoError(t, err)
+
+	writeConfig := func(sourceRoot string) {
+		data := []byte(fmt.Sprintf(`version: 1
+source:
+  roots:
+    - %s
+output:
+  path: %s
+`, sourceRoot, outputPath))
+		require.NoError(t, os.WriteFile(configPath, data, 0o600))
+	}
+
+	writeConfig(root)
+	RootCmd.SetArgs([]string{"sync", "--config", configPath})
+	require.NoError(t, RootCmd.Execute())
+
+	indexPath := filepath.Join(outputPath, "index.yml")
+	previous, err := os.ReadFile(indexPath)
+	require.NoError(t, err)
+
+	writeConfig(filepath.Join(directory, "does-not-exist"))
+	err = RootCmd.Execute()
+	require.Error(t, err)
+
+	current, err := os.ReadFile(indexPath)
+	require.NoError(t, err)
+	require.Equal(t, previous, current)
+}
