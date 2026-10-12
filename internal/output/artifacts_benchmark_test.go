@@ -10,15 +10,13 @@ import (
 	"github.com/Paulooo0/symbolc/internal/graph"
 )
 
-var benchmarkData []byte
+var benchmarkFiles map[string][]byte
 
 func benchmarkConfig() config.Config {
 	baseDir, _ := filepath.Abs(filepath.Join("..", ".."))
 	return config.Config{
 		BaseDir: baseDir,
-		Source: config.SourceConfig{
-			Roots: []string{"."},
-		},
+		Source:  config.SourceConfig{Roots: []string{"."}},
 		Contracts: config.ContractsConfig{
 			Include: []string{"internal/**"},
 			Exclude: []string{"**/*_test.go", "**/generated/**"},
@@ -35,42 +33,47 @@ func benchmarkGraph(b *testing.B, cfg config.Config) *graph.Graph {
 	return g
 }
 
-func BenchmarkMarshalYAML(b *testing.B) {
+func benchmarkSize(files map[string][]byte) int64 {
+	var size int64
+	for _, data := range files {
+		size += int64(len(data))
+	}
+	return size
+}
+
+func BenchmarkMaterialize(b *testing.B) {
 	cfg := benchmarkConfig()
 	g := benchmarkGraph(b, cfg)
-
-	data, err := MarshalYAML(g, cfg)
+	files, err := Materialize(g, cfg)
 	if err != nil {
 		b.Fatal(err)
 	}
-	b.SetBytes(int64(len(data)))
+	b.SetBytes(benchmarkSize(files))
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		benchmarkData, err = MarshalYAML(g, cfg)
+		benchmarkFiles, err = Materialize(g, cfg)
 		if err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-func BenchmarkAnalyzeAndMarshalYAML(b *testing.B) {
+func BenchmarkAnalyzeAndMaterialize(b *testing.B) {
 	cfg := benchmarkConfig()
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		g, err := analyzer.NewAnalyzer(cfg).Analyze(context.Background())
-		if err != nil {
-			b.Fatal(err)
-		}
-		benchmarkData, err = MarshalYAML(g, cfg)
+		g := benchmarkGraph(b, cfg)
+		var err error
+		benchmarkFiles, err = Materialize(g, cfg)
 		if err != nil {
 			b.Fatal(err)
 		}
 		if i == 0 {
-			b.SetBytes(int64(len(benchmarkData)))
+			b.SetBytes(benchmarkSize(benchmarkFiles))
 		}
 	}
 }

@@ -22,11 +22,6 @@ var syncCmd = &cobra.Command{
 			return err
 		}
 
-		g, err := analyzer.NewAnalyzer(*cfg).Analyze(cmd.Context())
-		if err != nil {
-			return fmt.Errorf("sync: analyze: %w", err)
-		}
-
 		if outputFormat != "" {
 			cfg.Output.Format = outputFormat
 		}
@@ -34,17 +29,22 @@ var syncCmd = &cobra.Command{
 			return fmt.Errorf("sync: unsupported output format: %s", cfg.Output.Format)
 		}
 
-		data, err := output.MarshalYAML(g, *cfg)
+		g, err := analyzer.NewAnalyzer(*cfg).Analyze(cmd.Context())
 		if err != nil {
-			return fmt.Errorf("sync: marshal output: %w", err)
+			return fmt.Errorf("sync: analyze: %w", err)
 		}
 
 		path := cfg.Output.Path
 		if outputPath != "" {
 			path = outputPath
 		}
+		files, err := output.Materialize(g, *cfg)
+		if err != nil {
+			return fmt.Errorf("sync: materialize output: %w", err)
+		}
+
 		if path == "" || path == "-" {
-			if _, err := cmd.OutOrStdout().Write(data); err != nil {
+			if _, err := cmd.OutOrStdout().Write(files["index.yml"]); err != nil {
 				return fmt.Errorf("sync: write output: %w", err)
 			}
 			return nil
@@ -52,7 +52,7 @@ var syncCmd = &cobra.Command{
 		if cfg.BaseDir != "" && !filepath.IsAbs(path) {
 			path = filepath.Join(cfg.BaseDir, path)
 		}
-		if err := output.WriteFileAtomic(path, data); err != nil {
+		if err := output.WriteDirectoryAtomic(path, files); err != nil {
 			return fmt.Errorf("sync: write output file: %w", err)
 		}
 

@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"path/filepath"
+	"sort"
 
 	"github.com/Paulooo0/symbolc/internal/config"
 	"github.com/Paulooo0/symbolc/internal/graph"
@@ -79,9 +80,25 @@ func (a *analyzer) loadPackages() (
 }
 
 func (a *analyzer) analyzePackage(g *graph.Graph, pkg *packages.Package) {
+	a.analyzePackageInfo(g, pkg)
 	a.analyzePackageSymbol(g, pkg)
 	a.analyzePackageScope(g, pkg)
 	a.analyzeDefinitions(g, pkg)
+}
+
+func (a *analyzer) analyzePackageInfo(g *graph.Graph, pkg *packages.Package) {
+	imports := make([]graph.SymbolID, 0, len(pkg.Imports))
+	for importPath := range pkg.Imports {
+		imports = append(imports, graph.SymbolID(importPath))
+	}
+	sort.Slice(imports, func(i, j int) bool { return imports[i] < imports[j] })
+
+	g.AddPackage(&graph.PackageInfo{
+		ID:      graph.SymbolID(pkg.PkgPath),
+		Name:    pkg.Name,
+		Imports: imports,
+		Main:    pkg.Name == "main",
+	})
 }
 
 func (a *analyzer) analyzePackageSymbol(g *graph.Graph, pkg *packages.Package) {

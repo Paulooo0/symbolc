@@ -6,7 +6,7 @@ source:
 
 output:
   format: yaml
-  path: .symbolc/symbols.yml
+  path: symbolc
 
 contracts:
   include:

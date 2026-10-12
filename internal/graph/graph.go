@@ -2,12 +2,26 @@ package graph
 
 type Graph struct {
 	Symbols      map[SymbolID]*Symbol
+	Packages     map[SymbolID]*PackageInfo
 	Dependencies []*Dependecy
+}
+
+type PackageInfo struct {
+	ID      SymbolID
+	Name    string
+	Imports []SymbolID
+	Main    bool
 }
 
 func NewGraph() *Graph {
 	return &Graph{
-		Symbols: make(map[SymbolID]*Symbol)}
+		Symbols:  make(map[SymbolID]*Symbol),
+		Packages: make(map[SymbolID]*PackageInfo),
+	}
+}
+
+func (g *Graph) AddPackage(pkg *PackageInfo) {
+	g.Packages[pkg.ID] = pkg
 }
 
 func (g *Graph) AddSymbol(symbol *Symbol) {

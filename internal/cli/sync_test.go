@@ -26,15 +26,14 @@ func TestSyncCommand(t *testing.T) {
 
 	require.NoError(t, RootCmd.Execute())
 	require.Contains(t, output.String(), "version: 1")
-	require.Contains(t, output.String(), "example.com/testproject.Foo")
-	require.Contains(t, output.String(), "kind: method")
+	require.Contains(t, output.String(), "executables:")
 	require.NotContains(t, output.String(), "configuration loaded")
 }
 
 func TestSyncCommandWritesConfiguredOutput(t *testing.T) {
 	directory := t.TempDir()
 	configPath := filepath.Join(directory, "symbolc.yml")
-	outputPath := filepath.Join(directory, "context.yml")
+	outputPath := filepath.Join(directory, "context.yml", "index.yml")
 	root, err := filepath.Abs(filepath.Join("..", "..", "internal", "analyzer", "testdata", "basic"))
 	require.NoError(t, err)
 	configData := []byte(fmt.Sprintf(`version: 1
