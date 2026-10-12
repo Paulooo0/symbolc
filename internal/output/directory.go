@@ -7,6 +7,8 @@ import (
 	"sort"
 )
 
+var renamePath = os.Rename
+
 func WriteDirectoryAtomic(root string, files map[string][]byte) error {
 	parent := filepath.Dir(root)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
@@ -50,7 +52,7 @@ func WriteDirectoryAtomic(root string, files map[string][]byte) error {
 
 	hadOutput := false
 	if _, err := os.Lstat(root); err == nil {
-		if err := os.Rename(root, backupPath); err != nil {
+		if err := renamePath(root, backupPath); err != nil {
 			return fmt.Errorf("output: move previous output: %w", err)
 		}
 		hadOutput = true
@@ -58,9 +60,9 @@ func WriteDirectoryAtomic(root string, files map[string][]byte) error {
 		return fmt.Errorf("output: inspect previous output: %w", err)
 	}
 
-	if err := os.Rename(temporary, root); err != nil {
+	if err := renamePath(temporary, root); err != nil {
 		if hadOutput {
-			_ = os.Rename(backupPath, root)
+			_ = renamePath(backupPath, root)
 		}
 		return fmt.Errorf("output: publish output: %w", err)
 	}
