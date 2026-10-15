@@ -51,7 +51,7 @@ directory.
 
 Add the following to your `go.mod`:
 ```sh
-tool github.com/Paulooo0/symbolc
+tool github.com/Paulooo0/symbolc/cmd/symbolc
 ```
 
 Update your `go.mod`:
