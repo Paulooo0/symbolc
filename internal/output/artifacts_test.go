@@ -1,6 +1,7 @@
 package output
 
 import (
+	"path"
 	"testing"
 
 	"github.com/Paulooo0/symbolc/internal/config"
@@ -21,7 +22,7 @@ func TestMaterialize(t *testing.T) {
 	for _, symbol := range []*graph.Symbol{
 		{ID: mainID, Name: "main", Kind: graph.KindPackage, Package: graph.Package{Name: "main", ImportPath: string(mainID)}, Source: graph.Source{File: "/project/cmd/app/main.go"}},
 		{ID: packageID, Name: "app", Kind: graph.KindPackage, Package: graph.Package{Name: "app", ImportPath: string(packageID)}, Source: graph.Source{File: "/project/internal/app/app.go"}},
-		{ID: userID, Name: "User", Kind: graph.KindStruct, Package: graph.Package{Name: "app", ImportPath: string(packageID)}, Source: graph.Source{File: "/project/internal/app/user.go"}},
+		{ID: userID, Name: "User", Kind: graph.KindStruct, Fields: []graph.Field{{Name: "ID", Type: "string"}}, Package: graph.Package{Name: "app", ImportPath: string(packageID)}, Source: graph.Source{File: "/project/internal/app/user.go"}},
 		{ID: methodID, Name: "String", Kind: graph.KindMethod, Package: graph.Package{Name: "app", ImportPath: string(packageID)}, Source: graph.Source{File: "/project/internal/app/user.go"}},
 	} {
 		g.AddSymbol(symbol)
@@ -48,11 +49,18 @@ func TestMaterialize(t *testing.T) {
 	require.Equal(t, packageID, flux.ID)
 	require.Len(t, flux.Packages, 1)
 	require.Equal(t, packageID, flux.Packages[0].ID)
+	require.Equal(t, []artifactRef{
+		{ID: string(packageID), Path: "contracts/app/package.yml"},
+		{ID: string(userID), Path: "contracts/app/User.yml"},
+		{ID: string(methodID), Path: "contracts/app/User.String.yml"},
+	}, flux.Packages[0].Symbols)
 
 	var contract contract
 	require.NoError(t, yaml.Unmarshal(files["cmd/app/contracts/app/User.yml"], &contract))
 	require.Equal(t, userID, contract.ID)
 	require.Equal(t, []graph.SymbolID{methodID}, contract.Methods)
+	require.Equal(t, []graph.Field{{Name: "ID", Type: "string"}}, contract.Fields)
+	assertIndexReferencesExist(t, files)
 }
 
 func TestMaterializeFiltersContracts(t *testing.T) {
@@ -125,5 +133,22 @@ func TestMaterializeSeparatesExecutables(t *testing.T) {
 	require.NoError(t, err)
 	for path, data := range files {
 		require.Equal(t, data, again[path], path)
+	}
+}
+
+func assertIndexReferencesExist(t *testing.T, files map[string][]byte) {
+	t.Helper()
+	for filename, data := range files {
+		if path.Base(filename) != "index.yml" {
+			continue
+		}
+
+		var index artifactIndex
+		require.NoError(t, yaml.Unmarshal(data, &index), filename)
+		refs := append(append(index.Executables, index.FluxEntrypoints...), index.Contracts...)
+		for _, ref := range refs {
+			referenced := path.Join(path.Dir(filename), ref.Path)
+			require.Contains(t, files, referenced, "%s references missing %s", filename, referenced)
+		}
 	}
 }

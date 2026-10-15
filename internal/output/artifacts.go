@@ -1,6 +1,7 @@
 package output
 
 import (
+	"go/token"
 	"path"
 	"path/filepath"
 	"sort"
@@ -26,13 +27,15 @@ type artifactRef struct {
 }
 
 type contract struct {
-	Version int              `yaml:"version"`
-	ID      graph.SymbolID   `yaml:"id"`
-	Name    string           `yaml:"name"`
-	Kind    graph.SymbolKind `yaml:"kind"`
-	Package packageRef       `yaml:"package"`
-	Source  graph.Source     `yaml:"source"`
-	Methods []graph.SymbolID `yaml:"methods,omitempty"`
+	Version   int              `yaml:"version"`
+	ID        graph.SymbolID   `yaml:"id"`
+	Name      string           `yaml:"name"`
+	Kind      graph.SymbolKind `yaml:"kind"`
+	Package   packageRef       `yaml:"package"`
+	Source    graph.Source     `yaml:"source"`
+	Signature string           `yaml:"signature,omitempty"`
+	Fields    []graph.Field    `yaml:"fields,omitempty"`
+	Methods   []graph.SymbolID `yaml:"methods,omitempty"`
 }
 
 type packageRef struct {
@@ -51,6 +54,7 @@ type fluxPackage struct {
 	ID      graph.SymbolID   `yaml:"id"`
 	Name    string           `yaml:"name"`
 	Imports []graph.SymbolID `yaml:"imports,omitempty"`
+	Symbols []artifactRef    `yaml:"symbols,omitempty"`
 }
 
 func Materialize(g *graph.Graph, cfg config.Config) (map[string][]byte, error) {
@@ -97,13 +101,15 @@ func materializeSession(g *graph.Graph, cfg config.Config, selected, roots []gra
 		symbol := g.Symbols[id]
 		path := contractPaths[id]
 		data, err := yaml.Marshal(contract{
-			Version: version,
-			ID:      symbol.ID,
-			Name:    symbol.Name,
-			Kind:    symbol.Kind,
-			Package: packageRef{Name: symbol.Package.Name, ImportPath: symbol.Package.ImportPath},
-			Source:  relativeSource(symbol.Source, cfg),
-			Methods: selectedMethods(symbol, selected),
+			Version:   version,
+			ID:        symbol.ID,
+			Name:      symbol.Name,
+			Kind:      symbol.Kind,
+			Package:   packageRef{Name: symbol.Package.Name, ImportPath: symbol.Package.ImportPath},
+			Source:    relativeSource(symbol.Source, cfg),
+			Signature: symbol.Signature,
+			Fields:    symbol.Fields,
+			Methods:   selectedMethods(symbol, selected),
 		})
 		if err != nil {
 			return nil, err
@@ -285,11 +291,29 @@ func materializeEntrypoints(g *graph.Graph, roots, selected []graph.SymbolID) (s
 
 	files := make(map[string][]byte)
 	refs := make([]artifactRef, 0, len(roots))
+	contractPaths := artifactPaths(selected, g)
+	packageSymbols := make(map[graph.SymbolID][]artifactRef)
+	for symbolID, artifactPath := range contractPaths {
+		symbol := g.Symbols[symbolID]
+		if symbol.Kind != graph.KindPackage && !token.IsExported(symbol.Name) {
+			continue
+		}
+		packageID := graph.SymbolID(symbol.Package.ImportPath)
+		packageSymbols[packageID] = append(packageSymbols[packageID], artifactRef{
+			ID:   string(symbolID),
+			Path: artifactPath,
+		})
+	}
+	for id := range packageSymbols {
+		sort.Slice(packageSymbols[id], func(i, j int) bool {
+			return packageSymbols[id][i].ID < packageSymbols[id][j].ID
+		})
+	}
 	for _, root := range roots {
 		if counts[paths[root]] > 1 {
 			paths[root] = filepath.ToSlash(filepath.Join("flux-entrypoints", safeName(string(root)))) + ".yml"
 		}
-		packages := reachablePackages(g, root, selectedSet)
+		packages := reachablePackages(g, root, selectedSet, packageSymbols)
 		data, err := yaml.Marshal(fluxEntrypoint{
 			Version:  version,
 			ID:       root,
@@ -312,7 +336,7 @@ func materializeEntrypoints(g *graph.Graph, roots, selected []graph.SymbolID) (s
 	}{files: files, refs: refs}, nil
 }
 
-func reachablePackages(g *graph.Graph, root graph.SymbolID, selected map[graph.SymbolID]struct{}) []fluxPackage {
+func reachablePackages(g *graph.Graph, root graph.SymbolID, selected map[graph.SymbolID]struct{}, packageSymbols map[graph.SymbolID][]artifactRef) []fluxPackage {
 	seen := make(map[graph.SymbolID]bool)
 	var visit func(graph.SymbolID)
 	visit = func(id graph.SymbolID) {
@@ -347,7 +371,7 @@ func reachablePackages(g *graph.Graph, root graph.SymbolID, selected map[graph.S
 				imports = append(imports, imported)
 			}
 		}
-		packages = append(packages, fluxPackage{ID: id, Name: pkg.Name, Imports: imports})
+		packages = append(packages, fluxPackage{ID: id, Name: pkg.Name, Imports: imports, Symbols: packageSymbols[id]})
 	}
 	return packages
 }

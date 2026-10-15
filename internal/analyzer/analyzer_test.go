@@ -94,4 +94,15 @@ func TestAnalyzer_Analyze(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("records_struct_fields_and_function_signatures", func(t *testing.T) {
+		user := got.Symbols["example.com/testproject.User"]
+		require.Equal(t, []graph.Field{
+			{Name: "ID", Type: "string"},
+			{Name: "Name", Type: "string"},
+		}, user.Fields)
+
+		createUser := got.Symbols["example.com/testproject.Foo"]
+		require.Equal(t, "func()", createUser.Signature)
+	})
 }

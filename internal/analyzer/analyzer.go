@@ -210,8 +210,9 @@ func symbolFromNamedType(
 	}
 
 	return &graph.Symbol{
-		ID:   graph.NewSymbolID(named.Obj()),
-		Name: typeName.Name(),
+		ID:     graph.NewSymbolID(named.Obj()),
+		Name:   typeName.Name(),
+		Fields: fieldsOf(named),
 		Package: graph.Package{
 			Name:       pkg.Name,
 			ImportPath: pkg.PkgPath,
@@ -227,8 +228,9 @@ func symbolFromObj(
 	kind graph.SymbolKind,
 ) *graph.Symbol {
 	return &graph.Symbol{
-		ID:   graph.NewSymbolID(obj),
-		Name: obj.Name(),
+		ID:        graph.NewSymbolID(obj),
+		Name:      obj.Name(),
+		Signature: types.TypeString(obj.Type(), func(pkg *types.Package) string { return pkg.Name() }),
 		Package: graph.Package{
 			Name:       obj.Pkg().Name(),
 			ImportPath: obj.Pkg().Path(),
@@ -236,6 +238,24 @@ func symbolFromObj(
 		Kind:   kind,
 		Source: sourceOf(pkg, obj.Pos()),
 	}
+}
+
+func fieldsOf(named *types.Named) []graph.Field {
+	structure, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return nil
+	}
+
+	fields := make([]graph.Field, 0, structure.NumFields())
+	for i := 0; i < structure.NumFields(); i++ {
+		field := structure.Field(i)
+		fields = append(fields, graph.Field{
+			Name:     field.Name(),
+			Type:     types.TypeString(field.Type(), func(pkg *types.Package) string { return pkg.Name() }),
+			Embedded: field.Embedded(),
+		})
+	}
+	return fields
 }
 
 func sourceOf(

@@ -26,8 +26,16 @@ type Symbol struct {
 	Package    Package
 	Kind       SymbolKind
 	Source     Source
+	Signature  string
+	Fields     []Field
 	Methods    []SymbolID
 	References []SymbolID
+}
+
+type Field struct {
+	Name     string `yaml:"name"`
+	Type     string `yaml:"type"`
+	Embedded bool   `yaml:"embedded,omitempty"`
 }
 
 type Package struct {
