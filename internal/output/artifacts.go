@@ -4,6 +4,7 @@ import (
 	"go/token"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -360,8 +361,12 @@ func reachablePackages(g *graph.Graph, root graph.SymbolID, selected map[graph.S
 	for id := range seen {
 		ids = append(ids, id)
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	slices.Sort(ids)
 
+	return getPackages(ids, g, seen, packageSymbols)
+}
+
+func getPackages(ids []graph.SymbolID, g *graph.Graph, seen map[graph.SymbolID]bool, packageSymbols map[graph.SymbolID][]artifactRef) []fluxPackage {
 	packages := make([]fluxPackage, 0, len(ids))
 	for _, id := range ids {
 		pkg := g.Packages[id]
